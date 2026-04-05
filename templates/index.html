@@ -1,25 +1,1851 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
+
 <head>
-    <title>Fake News Detector</title>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VeritasAI — Fake News Detector</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700;900&family=IBM+Plex+Mono:wght@400;500&family=Lato:wght@300;400;700&display=swap"
+        rel="stylesheet" />
     <style>
-        body { font-family: Arial; margin: 50px; }
-        input, textarea { width: 100%; padding: 10px; margin: 10px 0; }
-        button { padding: 10px 20px; }
-        .result { margin-top: 20px; font-size: 20px; font-weight: bold; }
+        :root {
+            --ink: #0e0e0e;
+            --paper: #f5f0e8;
+            --paper2: #ede8dc;
+            --paper3: #e4dece;
+            --border: #c8bfa8;
+            --border2: #a89f8a;
+            --accent: #c0392b;
+            --real: #1a6b3a;
+            --real-bg: #eaf5ee;
+            --real-bdr: #7dba98;
+            --fake: #8b1a1a;
+            --fake-bg: #fdf0f0;
+            --unsure: #7a5c00;
+            --unsure-bg: #fdf8e8;
+            --blue: #1a3a6b;
+            --muted: #7a7060;
+            --head: 'Playfair Display', serif;
+            --mono: 'IBM Plex Mono', monospace;
+            --body: 'Lato', sans-serif;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: var(--body);
+            min-height: 100vh;
+        }
+
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            z-index: 0;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='400' height='400'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='400' height='400' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+            opacity: 0.6;
+        }
+
+        .masthead-bar {
+            background: var(--ink);
+            color: var(--paper);
+            text-align: center;
+            padding: 7px 20px;
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            position: relative;
+            z-index: 1;
+        }
+
+        .masthead-bar span {
+            color: #e74c3c;
+        }
+
+        header {
+            border-bottom: 3px double var(--border2);
+            padding: 32px 20px 24px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+            animation: fadeDown .7s ease both;
+        }
+
+        .masthead-rule {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 16px;
+        }
+
+        .rule-line {
+            flex: 1;
+            max-width: 120px;
+            height: 1px;
+            background: var(--border2);
+        }
+
+        .rule-diamond {
+            width: 8px;
+            height: 8px;
+            background: var(--accent);
+            transform: rotate(45deg);
+        }
+
+        .site-name {
+            font-family: var(--head);
+            font-size: clamp(3rem, 8vw, 5.5rem);
+            font-weight: 900;
+            letter-spacing: -2px;
+            line-height: 1;
+            margin-bottom: 6px;
+        }
+
+        .site-name span {
+            color: var(--accent);
+        }
+
+        .tagline {
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 20px;
+        }
+
+        .status-row {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid var(--border);
+            background: var(--paper2);
+            border-radius: 3px;
+            padding: 5px 12px;
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: var(--border2);
+        }
+
+        .dot.on {
+            background: var(--real);
+            box-shadow: 0 0 5px var(--real);
+        }
+
+        .dot.off {
+            background: var(--fake);
+        }
+
+        .main {
+            max-width: 860px;
+            margin: 0 auto;
+            padding: 32px 20px 80px;
+            position: relative;
+            z-index: 1;
+        }
+
+        .section-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            color: var(--accent);
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-label::after {
+            content: '';
+            flex: 1;
+            height: 1px;
+            background: var(--border);
+        }
+
+        /* TABS */
+        .tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 0;
+            border: 1px solid var(--border2);
+            border-bottom: none;
+            width: 100%;
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 10px 14px;
+            border: none;
+            background: var(--paper2);
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all .2s;
+            border-right: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .tab-btn:last-child {
+            border-right: none;
+        }
+
+        .tab-btn.active {
+            background: var(--paper);
+            color: var(--ink);
+            font-weight: 700;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: var(--paper3);
+        }
+
+        /* INPUT PANEL */
+        .input-panel {
+            border: 1px solid var(--border2);
+            background: var(--paper);
+            padding: 24px;
+            margin-bottom: 24px;
+            animation: fadeUp .5s ease both .1s;
+        }
+
+        .input-label {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+            display: block;
+        }
+
+        textarea {
+            width: 100%;
+            background: var(--paper2);
+            border: 1px solid var(--border);
+            color: var(--ink);
+            font-family: var(--body);
+            font-size: 0.95rem;
+            line-height: 1.7;
+            padding: 14px 16px;
+            resize: vertical;
+            outline: none;
+            transition: border-color .2s;
+            border-radius: 2px;
+            min-height: 180px;
+        }
+
+        textarea:focus {
+            border-color: var(--ink);
+        }
+
+        .input-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .char-count {
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            color: var(--muted);
+        }
+
+        .hint {
+            font-size: 0.78rem;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        /* UPLOAD ZONE */
+        .upload-zone {
+            border: 2px dashed var(--border2);
+            background: var(--paper2);
+            border-radius: 4px;
+            padding: 40px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all .2s;
+            position: relative;
+        }
+
+        .upload-zone:hover,
+        .upload-zone.dragover {
+            border-color: var(--ink);
+            background: var(--paper3);
+        }
+
+        .upload-zone input[type=file] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+            width: 100%;
+            height: 100%;
+        }
+
+        .upload-icon {
+            font-size: 2.5rem;
+            margin-bottom: 12px;
+        }
+
+        .upload-title {
+            font-family: var(--head);
+            font-size: 1.1rem;
+            font-weight: 700;
+            margin-bottom: 6px;
+        }
+
+        .upload-sub {
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            color: var(--muted);
+            text-transform: uppercase;
+        }
+
+        /* FILE PREVIEW */
+        .file-preview {
+            display: none;
+            margin-top: 14px;
+            border: 1px solid var(--border);
+            background: var(--paper);
+            padding: 12px 16px;
+            display: none;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .file-preview.show {
+            display: flex;
+        }
+
+        .preview-icon {
+            font-size: 1.8rem;
+            flex-shrink: 0;
+        }
+
+        .preview-info {
+            flex: 1;
+        }
+
+        .preview-name {
+            font-family: var(--mono);
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--ink);
+        }
+
+        .preview-size {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            color: var(--muted);
+            margin-top: 2px;
+        }
+
+        .preview-remove {
+            background: none;
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            cursor: pointer;
+            color: var(--fake);
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .preview-remove:hover {
+            background: var(--fake-bg);
+        }
+
+        /* IMAGE PREVIEW */
+        .img-preview {
+            display: none;
+            margin-top: 14px;
+            max-width: 100%;
+            max-height: 220px;
+            object-fit: contain;
+            border: 1px solid var(--border);
+        }
+
+        .img-preview.show {
+            display: block;
+        }
+
+        /* ANALYZE BUTTON */
+        .analyze-btn {
+            width: 100%;
+            padding: 15px;
+            background: var(--ink);
+            color: var(--paper);
+            border: none;
+            font-family: var(--head);
+            font-size: 1.1rem;
+            font-weight: 700;
+            letter-spacing: 1px;
+            cursor: pointer;
+            transition: all .2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 16px;
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .analyze-btn::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: var(--accent);
+        }
+
+        .analyze-btn:hover {
+            background: #1a1a1a;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* LOADING */
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 48px;
+            border: 1px solid var(--border);
+            background: var(--paper2);
+        }
+
+        .loading-press {
+            font-family: var(--head);
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--ink);
+            margin-bottom: 8px;
+        }
+
+        .loading-dots span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--accent);
+            border-radius: 50%;
+            margin: 0 3px;
+            animation: bounce 1.2s infinite;
+        }
+
+        .loading-dots span:nth-child(2) {
+            animation-delay: .2s;
+        }
+
+        .loading-dots span:nth-child(3) {
+            animation-delay: .4s;
+        }
+
+        .loading-sub {
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-top: 12px;
+        }
+
+        /* ERROR */
+        .error-box {
+            display: none;
+            border-left: 4px solid var(--accent);
+            background: var(--fake-bg);
+            padding: 14px 18px;
+            font-size: 0.88rem;
+            color: var(--fake);
+            margin-bottom: 20px;
+            font-family: var(--mono);
+        }
+
+        /* EXTRACTED TEXT BOX */
+        .extracted-box {
+            display: none;
+            background: var(--paper2);
+            border: 1px solid var(--border);
+            border-left: 4px solid var(--blue);
+            padding: 14px 18px;
+            margin-bottom: 20px;
+        }
+
+        .extracted-box h4 {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--blue);
+            margin-bottom: 8px;
+        }
+
+        .extracted-box p {
+            font-size: 0.85rem;
+            line-height: 1.6;
+            color: var(--ink);
+            font-style: italic;
+        }
+
+        /* RESULTS */
+        #results {
+            display: none;
+            animation: fadeUp .5s ease both;
+        }
+
+        .verdict-flag {
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            padding: 5px 14px;
+            display: inline-block;
+            margin-bottom: 0;
+        }
+
+        .verdict-flag.real {
+            background: var(--real);
+            color: #fff;
+        }
+
+        .verdict-flag.fake {
+            background: var(--fake);
+            color: #fff;
+        }
+
+        .verdict-flag.unsure {
+            background: var(--unsure);
+            color: #fff;
+        }
+
+        .verdict-banner {
+            border: 1px solid var(--border2);
+            padding: 24px 28px;
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .verdict-banner.real {
+            background: var(--real-bg);
+            border-left: 5px solid var(--real);
+        }
+
+        .verdict-banner.fake {
+            background: var(--fake-bg);
+            border-left: 5px solid var(--fake);
+        }
+
+        .verdict-banner.unsure {
+            background: var(--unsure-bg);
+            border-left: 5px solid var(--unsure);
+        }
+
+        .v-icon {
+            font-size: 2.2rem;
+            flex-shrink: 0;
+            line-height: 1;
+        }
+
+        .v-body {
+            flex: 1;
+        }
+
+        .v-headline {
+            font-family: var(--head);
+            font-size: 1.8rem;
+            font-weight: 900;
+            line-height: 1.1;
+            margin-bottom: 6px;
+        }
+
+        .real .v-headline {
+            color: var(--real);
+        }
+
+        .fake .v-headline {
+            color: var(--fake);
+        }
+
+        .unsure .v-headline {
+            color: var(--unsure);
+        }
+
+        .v-sub {
+            font-size: 0.88rem;
+            color: var(--muted);
+            font-style: italic;
+        }
+
+        .v-mode {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 4px 10px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            align-self: flex-start;
+        }
+
+        .score-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border2);
+            margin-bottom: 24px;
+            margin-top: 2px;
+        }
+
+        @media(max-width:480px) {
+            .score-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .score-cell {
+            background: var(--paper);
+            padding: 18px 20px;
+        }
+
+        .score-cell h4 {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        .score-big {
+            font-family: var(--head);
+            font-size: 2.2rem;
+            font-weight: 900;
+            color: var(--ink);
+            line-height: 1;
+            margin-bottom: 10px;
+        }
+
+        .score-bar {
+            background: var(--paper3);
+            height: 5px;
+        }
+
+        .score-fill {
+            height: 100%;
+            transition: width 1.3s cubic-bezier(.4, 0, .2, 1);
+            width: 0%;
+        }
+
+        .prob-section {
+            border: 1px solid var(--border2);
+            background: var(--paper);
+            padding: 20px 24px;
+            margin-bottom: 24px;
+        }
+
+        .prob-row {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 10px;
+        }
+
+        .prob-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .prob-label {
+            width: 55px;
+            font-family: var(--mono);
+            font-size: 0.75rem;
+            font-weight: 500;
+            flex-shrink: 0;
+        }
+
+        .prob-label.real-lbl {
+            color: var(--real);
+        }
+
+        .prob-label.fake-lbl {
+            color: var(--fake);
+        }
+
+        .prob-track {
+            flex: 1;
+            background: var(--paper3);
+            height: 10px;
+        }
+
+        .prob-fill-bar {
+            height: 100%;
+            transition: width 1.3s cubic-bezier(.4, 0, .2, 1);
+            width: 0%;
+        }
+
+        .prob-fill-bar.real-fill {
+            background: var(--real);
+        }
+
+        .prob-fill-bar.fake-fill {
+            background: var(--fake);
+        }
+
+        .prob-pct {
+            width: 50px;
+            text-align: right;
+            font-family: var(--mono);
+            font-size: 0.82rem;
+            font-weight: 500;
+        }
+
+        .detail-cols {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1px;
+            background: var(--border);
+            border: 1px solid var(--border2);
+            margin-bottom: 24px;
+        }
+
+        @media(max-width:540px) {
+            .detail-cols {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .detail-col {
+            background: var(--paper);
+            padding: 20px 22px;
+        }
+
+        .detail-col h4 {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .detail-col p {
+            font-size: 0.9rem;
+            line-height: 1.7;
+            color: var(--ink);
+        }
+
+        .flags-list {
+            list-style: none;
+        }
+
+        .flags-list li {
+            display: flex;
+            gap: 8px;
+            font-size: 0.86rem;
+            padding: 6px 0;
+            border-bottom: 1px dotted var(--border);
+        }
+
+        .flags-list li:last-child {
+            border-bottom: none;
+        }
+
+        .flag-bullet {
+            color: var(--accent);
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+
+        .no-flags {
+            color: var(--real);
+            font-size: 0.88rem;
+            font-style: italic;
+        }
+
+        .tip-box {
+            border: 1px solid var(--border);
+            background: var(--paper2);
+            padding: 16px 20px;
+            margin-bottom: 24px;
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+            border-left: 4px solid var(--blue);
+        }
+
+        .tip-label {
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: var(--blue);
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+
+        .tip-box p {
+            font-size: 0.88rem;
+            line-height: 1.6;
+            color: var(--ink);
+            font-style: italic;
+        }
+
+        .reset-btn {
+            display: block;
+            margin: 0 auto;
+            padding: 9px 28px;
+            background: transparent;
+            border: 1px solid var(--border2);
+            color: var(--muted);
+            font-family: var(--mono);
+            font-size: 0.72rem;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all .2s;
+            border-radius: 2px;
+        }
+
+        .reset-btn:hover {
+            border-color: var(--ink);
+            color: var(--ink);
+        }
+
+        footer {
+            text-align: center;
+            padding: 24px;
+            border-top: 1px solid var(--border);
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: 2px;
+            color: var(--muted);
+            position: relative;
+            z-index: 1;
+        }
+
+        @keyframes fadeDown {
+            from {
+                opacity: 0;
+                transform: translateY(-12px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        @keyframes fadeUp {
+            from {
+                opacity: 0;
+                transform: translateY(12px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        @keyframes bounce {
+
+            0%,
+            80%,
+            100% {
+                transform: scale(0)
+            }
+
+            40% {
+                transform: scale(1)
+            }
+        }
     </style>
 </head>
+
 <body>
-    <h1>Fake News Detector 📰</h1>
-    <form action="/predict" method="post">
-        <textarea name="news" rows="5" placeholder="Enter news text here..." required></textarea>
-        <button type="submit">Check News</button>
-    </form>
-    {% if prediction %}
-    <div class="result">
-        <p>News: "{{ news }}"</p>
-        <p>Prediction: {{ prediction }}</p>
+
+    <div class="masthead-bar">
+        AI-Powered News Verification &nbsp;|&nbsp;
+        <span>Text · Image · Video</span> &nbsp;|&nbsp;
+        Logistic Regression · TF-IDF · OCR · Speech-to-Text
     </div>
-    {% endif %}
+
+    <header>
+        <div class="masthead-rule">
+            <div class="rule-line"></div>
+            <div class="rule-diamond"></div>
+            <div class="rule-diamond"></div>
+            <div class="rule-line"></div>
+        </div>
+        <div class="site-name">Veritas<span>AI</span></div>
+        <div class="tagline">The Truth Engine &mdash; AI-Based Fake News Detection System</div>
+        <div class="masthead-rule" style="margin:16px 0">
+            <div class="rule-line"></div>
+            <div class="rule-diamond"></div>
+            <div class="rule-line"></div>
+        </div>
+
+    </header>
+
+    <div class="main">
+
+        <div class="section-label">Submit Content for Verification</div>
+
+        <!-- TABS -->
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('text',this)">📝 Text</button>
+            <button class="tab-btn" onclick="switchTab('image',this)">🖼 Image</button>
+            <button class="tab-btn" onclick="switchTab('video',this)">🎬 Video</button>
+        </div>
+
+        <div class="input-panel">
+
+            <!-- TEXT -->
+            <div id="text-section">
+                <label class="input-label">Paste News Content Below</label>
+                <textarea id="newsText" placeholder="Paste any news article, headline, or content here..."
+                    oninput="updateCount()"></textarea>
+                <div class="input-footer">
+                    <span class="hint">Minimum 20 characters required</span>
+                    <span class="char-count" id="charCount">0 chars</span>
+                </div>
+            </div>
+
+            <!-- IMAGE -->
+            <div id="image-section" style="display:none">
+                <label class="input-label">Upload News Screenshot or Image</label>
+                <div class="upload-zone" id="imageZone" ondragover="dragOver(event,'imageZone')"
+                    ondragleave="dragLeave('imageZone')" ondrop="dropFile(event,'image')">
+                    <input type="file" id="imageFile" accept=".jpg,.jpeg,.png,.bmp,.tiff,.webp"
+                        onchange="fileSelected('image')" />
+                    <div class="upload-icon">🖼️</div>
+                    <div class="upload-title">Drop image here or click to browse</div>
+                    <div class="upload-sub">JPG · PNG · BMP · TIFF · WEBP</div>
+                </div>
+                <img id="imgPreview" class="img-preview" alt="Preview" />
+                <div class="file-preview" id="imagePreview">
+                    <span class="preview-icon">🖼️</span>
+                    <div class="preview-info">
+                        <div class="preview-name" id="imageName">—</div>
+                        <div class="preview-size" id="imageSize">—</div>
+                    </div>
+                    <button class="preview-remove" onclick="removeFile('image')">✕ Remove</button>
+                </div>
+                <p class="hint" style="margin-top:10px">📌 Text in the image will be extracted using OCR and analyzed
+                </p>
+            </div>
+
+            <!-- VIDEO -->
+            <div id="video-section" style="display:none">
+                <label class="input-label">Upload News Video File</label>
+                <div class="upload-zone" id="videoZone" ondragover="dragOver(event,'videoZone')"
+                    ondragleave="dragLeave('videoZone')" ondrop="dropFile(event,'video')">
+                    <input type="file" id="videoFile" accept=".mp4,.avi,.mov,.mkv,.webm,.flv"
+                        onchange="fileSelected('video')" />
+                    <div class="upload-icon">🎬</div>
+                    <div class="upload-title">Drop video here or click to browse</div>
+                    <div class="upload-sub">MP4 · AVI · MOV · MKV · WEBM · FLV · Max 50MB</div>
+                </div>
+                <div class="file-preview" id="videoPreview">
+                    <span class="preview-icon">🎬</span>
+                    <div class="preview-info">
+                        <div class="preview-name" id="videoName">—</div>
+                        <div class="preview-size" id="videoSize">—</div>
+                    </div>
+                    <button class="preview-remove" onclick="removeFile('video')">✕ Remove</button>
+                </div>
+                <p class="hint" style="margin-top:10px">📌 Speech from the first 60 seconds will be extracted and
+                    analyzed · Requires clear English speech</p>
+            </div>
+
+            <button class="analyze-btn" id="analyzeBtn" onclick="analyze()">
+                Analyze for Authenticity →
+            </button>
+        </div>
+
+        <div class="error-box" id="errorBox"></div>
+
+        <div class="loading" id="loading">
+            <div class="loading-press" id="loadingTitle">Verifying Content</div>
+            <div class="loading-dots"><span></span><span></span><span></span></div>
+            <div class="loading-sub" id="loadingMsg">Running ML model analysis...</div>
+        </div>
+
+        <!-- EXTRACTED TEXT PREVIEW -->
+        <div class="extracted-box" id="extractedBox">
+            <h4>Extracted Text</h4>
+            <p id="extractedText"></p>
+        </div>
+
+        <!-- RESULTS -->
+        <div id="results">
+            <div class="section-label">Verification Report</div>
+
+            <div style="margin-bottom:2px">
+                <div class="verdict-flag" id="verdictFlag">VERDICT</div>
+            </div>
+            <div class="verdict-banner" id="verdictBanner">
+                <div class="v-icon" id="vIcon"></div>
+                <div class="v-body">
+                    <div class="v-headline" id="vHeadline"></div>
+                    <div class="v-sub" id="vSub"></div>
+                </div>
+
+            </div>
+
+            <div class="score-grid">
+                <div class="score-cell">
+                    <h4>⬛ Credibility Score</h4>
+                    <div class="score-big" id="finalScore">—</div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="finalFill"></div>
+                    </div>
+                </div>
+                <div class="score-cell">
+                    <h4>⬛ Confidence Level</h4>
+                    <div class="score-big" id="mlConf">—</div>
+                    <div class="score-bar">
+                        <div class="score-fill" id="mlConfFill"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="prob-section">
+                <div class="section-label" style="margin-bottom:14px">Probability Distribution</div>
+                <div class="prob-row">
+                    <span class="prob-label real-lbl">REAL</span>
+                    <div class="prob-track">
+                        <div class="prob-fill-bar real-fill" id="realBar"></div>
+                    </div>
+                    <span class="prob-pct" id="realPct">—</span>
+                </div>
+                <div class="prob-row">
+                    <span class="prob-label fake-lbl">FAKE</span>
+                    <div class="prob-track">
+                        <div class="prob-fill-bar fake-fill" id="fakeBar"></div>
+                    </div>
+                    <span class="prob-pct" id="fakePct">—</span>
+                </div>
+            </div>
+
+            <div class="detail-cols">
+                <div class="detail-col">
+                    <h4>NLP Analysis &amp; Reasoning</h4>
+                    <p id="reasoning">—</p>
+                </div>
+                <div class="detail-col">
+                    <h4>Red Flags Detected</h4>
+                    <ul class="flags-list" id="redFlags"></ul>
+                </div>
+            </div>
+
+            <div class="tip-box">
+                <span class="tip-label">Tip</span>
+                <p id="tipText">Always verify news from multiple trusted sources.</p>
+            </div>
+
+            <button class="reset-btn" onclick="resetForm()">← Analyze Another</button>
+        </div>
+
+    </div>
+
+    <footer>
+        VeritasAI &nbsp;·&nbsp; AI-Based Fake News Detection &nbsp;·&nbsp;
+        ML + OCR + Speech-to-Text &nbsp;·&nbsp; 96.86% Accuracy
+    </footer>
+
+    <script>
+        let currentTab = 'text';
+        let selectedFiles = { image: null, video: null };
+
+        // Status check
+        window.addEventListener('load', async () => {
+            try {
+                const res = await fetch('/status');
+                const data = await res.json();
+                document.getElementById('mlDot').className = 'dot ' + (data.ml_model ? 'on' : 'off');
+                document.getElementById('mlLabel').textContent = 'ML Engine: ' + (data.ml_model ? 'Online ●' : 'Offline ✕');
+                document.getElementById('ocrDot').className = 'dot ' + (data.ocr ? 'on' : 'off');
+                document.getElementById('ocrLabel').textContent = 'OCR: ' + (data.ocr ? 'Online ●' : 'Offline ✕');
+            } catch (e) { }
+        });
+
+        function switchTab(tab, btn) {
+            currentTab = tab;
+            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.getElementById('text-section').style.display = tab === 'text' ? 'block' : 'none';
+            document.getElementById('image-section').style.display = tab === 'image' ? 'block' : 'none';
+            document.getElementById('video-section').style.display = tab === 'video' ? 'block' : 'none';
+            hideError();
+        }
+
+        function updateCount() {
+            document.getElementById('charCount').textContent = document.getElementById('newsText').value.length + ' chars';
+        }
+
+        function dragOver(e, zoneId) {
+            e.preventDefault();
+            document.getElementById(zoneId).classList.add('dragover');
+        }
+
+        function dragLeave(zoneId) {
+            document.getElementById(zoneId).classList.remove('dragover');
+        }
+
+        function dropFile(e, type) {
+            e.preventDefault();
+            const zoneId = type + 'Zone';
+            document.getElementById(zoneId).classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                const input = document.getElementById(type + 'File');
+                const dt = new DataTransfer();
+                dt.items.add(file);
+                input.files = dt.files;
+                fileSelected(type);
+            }
+        }
+
+        function fileSelected(type) {
+            const input = document.getElementById(type + 'File');
+            const file = input.files[0];
+            if (!file) return;
+
+            selectedFiles[type] = file;
+            const size = (file.size / 1024 / 1024).toFixed(2) + ' MB';
+
+            document.getElementById(type + 'Name').textContent = file.name;
+            document.getElementById(type + 'Size').textContent = size;
+            document.getElementById(type + 'Preview').classList.add('show');
+
+            if (type === 'image') {
+                const reader = new FileReader();
+                reader.onload = e => {
+                    const img = document.getElementById('imgPreview');
+                    img.src = e.target.result;
+                    img.classList.add('show');
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        function removeFile(type) {
+            selectedFiles[type] = null;
+            document.getElementById(type + 'File').value = '';
+            document.getElementById(type + 'Preview').classList.remove('show');
+            if (type === 'image') {
+                const img = document.getElementById('imgPreview');
+                img.src = ''; img.classList.remove('show');
+            }
+        }
+
+        function showError(msg) {
+            const b = document.getElementById('errorBox');
+            b.textContent = '⚠ ERROR: ' + msg;
+            b.style.display = 'block';
+        }
+        function hideError() { document.getElementById('errorBox').style.display = 'none'; }
+
+        async function analyze() {
+            hideError();
+            document.getElementById('extractedBox').style.display = 'none';
+            const btn = document.getElementById('analyzeBtn');
+            const loading = document.getElementById('loading');
+
+            // Validate input
+            if (currentTab === 'text') {
+                const content = document.getElementById('newsText').value.trim();
+                if (!content || content.length < 20) { showError('Please provide at least 20 characters.'); return; }
+            } else if (currentTab === 'image') {
+                if (!selectedFiles.image) { showError('Please select an image file.'); return; }
+            } else if (currentTab === 'video') {
+                if (!selectedFiles.video) { showError('Please select a video file.'); return; }
+            }
+
+            btn.disabled = true;
+            document.getElementById('results').style.display = 'none';
+            loading.style.display = 'block';
+
+            // Loading messages by type
+            if (currentTab === 'image') {
+                document.getElementById('loadingTitle').textContent = 'Extracting Text from Image';
+                document.getElementById('loadingMsg').textContent = 'Running OCR analysis...';
+            } else if (currentTab === 'video') {
+                document.getElementById('loadingTitle').textContent = 'Processing Video';
+                document.getElementById('loadingMsg').textContent = 'Extracting speech from audio...';
+                setTimeout(() => { document.getElementById('loadingMsg').textContent = 'Converting speech to text...'; }, 3000);
+                setTimeout(() => { document.getElementById('loadingMsg').textContent = 'Running ML analysis...'; }, 7000);
+            } else {
+                document.getElementById('loadingTitle').textContent = 'Verifying Content';
+                document.getElementById('loadingMsg').textContent = 'Running ML model analysis...';
+            }
+
+            try {
+                const formData = new FormData();
+                formData.append('type', currentTab);
+
+                if (currentTab === 'text') {
+                    formData.append('content', document.getElementById('newsText').value.trim());
+                } else if (currentTab === 'image') {
+                    formData.append('file', selectedFiles.image);
+                } else if (currentTab === 'video') {
+                    formData.append('file', selectedFiles.video);
+                }
+
+                const res = await fetch('/analyze', { method: 'POST', body: formData });
+                const data = await res.json();
+
+                loading.style.display = 'none';
+                btn.disabled = false;
+
+                if (!data.success) { showError(data.error || 'Analysis failed.'); return; }
+
+                // Show extracted text if from image/video
+                if (data.result.extracted_text) {
+                    document.getElementById('extractedBox').style.display = 'block';
+                    document.getElementById('extractedText').textContent =
+                        (data.result.extracted_from || 'Extracted text') + ':\n\n"' + data.result.extracted_text + '"';
+                }
+
+                showResults(data.result);
+
+            } catch (e) {
+                loading.style.display = 'none';
+                btn.disabled = false;
+                showError('Cannot connect to server. Ensure app.py is running.');
+            }
+        }
+
+        function showResults(r) {
+            const results = document.getElementById('results');
+            results.style.display = 'block';
+
+            const banner = document.getElementById('verdictBanner');
+            const flag = document.getElementById('verdictFlag');
+            banner.className = 'verdict-banner';
+
+            if (r.verdict === 'FAKE NEWS') {
+                banner.classList.add('fake'); flag.className = 'verdict-flag fake';
+                document.getElementById('vIcon').textContent = '✕';
+                document.getElementById('vHeadline').textContent = 'FAKE NEWS DETECTED';
+                document.getElementById('vSub').textContent = 'Confidence: ' + r.confidence + ' — This content contains indicators of misinformation.';
+            } else if (r.verdict === 'REAL NEWS') {
+                banner.classList.add('real'); flag.className = 'verdict-flag real';
+                document.getElementById('vIcon').textContent = '✓';
+                document.getElementById('vHeadline').textContent = 'CREDIBLE NEWS';
+                document.getElementById('vSub').textContent = 'Confidence: ' + r.confidence + ' — This content appears to be factual and credible.';
+            } else {
+                banner.classList.add('unsure'); flag.className = 'verdict-flag unsure';
+                document.getElementById('vIcon').textContent = '?';
+                document.getElementById('vHeadline').textContent = 'UNCERTAIN';
+                document.getElementById('vSub').textContent = 'Confidence: ' + r.confidence + ' — Manual verification recommended.';
+            }
+
+
+
+            setScore('finalScore', 'finalFill', r.credibility_score);
+            setScore('mlConf', 'mlConfFill', r.ml_confidence_pct || r.confidence_pct || 0);
+
+            setTimeout(() => {
+                document.getElementById('realBar').style.width = r.real_probability + '%';
+                document.getElementById('realPct').textContent = r.real_probability + '%';
+                document.getElementById('fakeBar').style.width = r.fake_probability + '%';
+                document.getElementById('fakePct').textContent = r.fake_probability + '%';
+            }, 120);
+
+            document.getElementById('reasoning').textContent = r.reasoning || '—';
+            document.getElementById('tipText').textContent = r.tips || '—';
+
+            const list = document.getElementById('redFlags');
+            list.innerHTML = '';
+            if (r.red_flags && r.red_flags.length > 0) {
+                r.red_flags.forEach(f => {
+                    const li = document.createElement('li');
+                    li.innerHTML = '<span class="flag-bullet">▸</span>' + f;
+                    list.appendChild(li);
+                });
+            } else {
+                list.innerHTML = '<p class="no-flags">No significant red flags detected.</p>';
+            }
+
+            results.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function setScore(numId, fillId, score) {
+            document.getElementById(numId).textContent = score + (score > 1 ? '/100' : '%');
+            setTimeout(() => {
+                const fill = document.getElementById(fillId);
+                const val = score > 1 ? score : score * 100;
+                fill.style.width = val + '%';
+                fill.style.background = val >= 65 ? 'var(--real)' : val >= 40 ? 'var(--unsure)' : 'var(--fake)';
+            }, 120);
+        }
+
+        function resetForm() {
+            document.getElementById('results').style.display = 'none';
+            document.getElementById('extractedBox').style.display = 'none';
+            document.getElementById('newsText').value = '';
+            document.getElementById('charCount').textContent = '0 chars';
+            removeFile('image');
+            removeFile('video');
+            hideError();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+    </script>
+
+    <!-- ── CHATBOT ── -->
+    <style>
+        /* Toggle Button */
+        .chat-toggle {
+            position: fixed;
+            bottom: 28px;
+            right: 28px;
+            z-index: 1000;
+            width: 58px;
+            height: 58px;
+            border-radius: 50%;
+            background: var(--ink);
+            border: 3px solid var(--accent);
+            color: var(--paper);
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all .2s;
+        }
+
+        .chat-toggle:hover {
+            transform: scale(1.1);
+            background: #1a1a1a;
+        }
+
+        .chat-toggle .badge {
+            position: absolute;
+            top: -4px;
+            right: -4px;
+            background: var(--accent);
+            color: #fff;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            font-size: 0.65rem;
+            font-family: var(--mono);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Chat Window */
+        .chat-window {
+            position: fixed;
+            bottom: 100px;
+            right: 28px;
+            z-index: 999;
+            width: 340px;
+            max-height: 500px;
+            background: var(--paper);
+            border: 2px solid var(--border2);
+            box-shadow: 0 8px 40px rgba(0, 0, 0, 0.18);
+            display: none;
+            flex-direction: column;
+            animation: slideUp .3s ease;
+        }
+
+        .chat-window.open {
+            display: flex;
+        }
+
+        .chat-header {
+            background: var(--ink);
+            color: var(--paper);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            border-bottom: 3px solid var(--accent);
+        }
+
+        .chat-header-icon {
+            font-size: 1.2rem;
+        }
+
+        .chat-header-info {
+            flex: 1;
+        }
+
+        .chat-header-name {
+            font-family: var(--head);
+            font-size: 1rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .chat-header-sub {
+            font-family: var(--mono);
+            font-size: 0.65rem;
+            letter-spacing: 1px;
+            color: #aaa;
+            margin-top: 2px;
+        }
+
+        .chat-close {
+            background: none;
+            border: none;
+            color: var(--paper);
+            font-size: 1.1rem;
+            cursor: pointer;
+            opacity: .7;
+            padding: 2px 6px;
+        }
+
+        .chat-close:hover {
+            opacity: 1;
+        }
+
+        /* Messages */
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 16px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            max-height: 320px;
+        }
+
+        .chat-msg {
+            max-width: 85%;
+            padding: 10px 13px;
+            font-size: 0.86rem;
+            line-height: 1.5;
+            animation: fadeUp .2s ease;
+        }
+
+        .chat-msg.bot {
+            background: var(--paper2);
+            border: 1px solid var(--border);
+            border-radius: 2px 12px 12px 12px;
+            align-self: flex-start;
+            color: var(--ink);
+            font-family: var(--body);
+        }
+
+        .chat-msg.user {
+            background: var(--ink);
+            color: var(--paper);
+            border-radius: 12px 2px 12px 12px;
+            align-self: flex-end;
+            font-family: var(--body);
+        }
+
+        .chat-msg.bot strong {
+            font-family: var(--head);
+            display: block;
+            margin-bottom: 4px;
+            font-size: 0.9rem;
+        }
+
+        /* Typing indicator */
+        .typing {
+            display: none;
+            align-self: flex-start;
+            background: var(--paper2);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: 2px 12px 12px 12px;
+        }
+
+        .typing span {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            background: var(--muted);
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: bounce 1s infinite;
+        }
+
+        .typing span:nth-child(2) {
+            animation-delay: .2s;
+        }
+
+        .typing span:nth-child(3) {
+            animation-delay: .4s;
+        }
+
+        /* Quick replies */
+        .quick-replies {
+            padding: 8px 14px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            border-top: 1px solid var(--border);
+            background: var(--paper2);
+        }
+
+        .quick-btn {
+            padding: 5px 10px;
+            background: var(--paper);
+            border: 1px solid var(--border2);
+            font-family: var(--mono);
+            font-size: 0.68rem;
+            letter-spacing: .5px;
+            cursor: pointer;
+            transition: all .15s;
+            border-radius: 2px;
+            color: var(--ink);
+        }
+
+        .quick-btn:hover {
+            background: var(--ink);
+            color: var(--paper);
+        }
+
+        /* Input */
+        .chat-input-row {
+            display: flex;
+            border-top: 2px solid var(--border2);
+            background: var(--paper);
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 11px 14px;
+            border: none;
+            background: transparent;
+            font-family: var(--body);
+            font-size: 0.88rem;
+            color: var(--ink);
+            outline: none;
+        }
+
+        .chat-send {
+            padding: 0 16px;
+            background: var(--ink);
+            color: var(--paper);
+            border: none;
+            font-family: var(--head);
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .2s;
+        }
+
+        .chat-send:hover {
+            background: var(--accent);
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+    </style>
+
+    <!-- Chat Toggle Button -->
+    <button class="chat-toggle" onclick="toggleChat()" title="Chat with VeritasBot">
+        💬
+        <div class="badge" id="chatBadge">1</div>
+    </button>
+
+    <!-- Chat Window -->
+    <div class="chat-window" id="chatWindow">
+        <div class="chat-header">
+            <div class="chat-header-icon">🗞️</div>
+            <div class="chat-header-info">
+                <div class="chat-header-name">VeritasBot</div>
+                <div class="chat-header-sub">FAKE NEWS DETECTION ASSISTANT</div>
+            </div>
+            <button class="chat-close" onclick="toggleChat()">✕</button>
+        </div>
+
+        <div class="chat-messages" id="chatMessages"></div>
+
+        <div class="typing" id="typingIndicator">
+            <span></span><span></span><span></span>
+        </div>
+
+        <div class="quick-replies" id="quickReplies">
+            <button class="quick-btn" onclick="sendQuick('What is fake news?')">What is fake news?</button>
+            <button class="quick-btn" onclick="sendQuick('How to use this app?')">How to use?</button>
+            <button class="quick-btn" onclick="sendQuick('How accurate is it?')">Accuracy?</button>
+            <button class="quick-btn" onclick="sendQuick('What is credibility score?')">Credibility score?</button>
+            <button class="quick-btn" onclick="sendQuick('What categories are supported?')">Categories?</button>
+            <button class="quick-btn" onclick="sendQuick('How to verify news?')">Verify news tips</button>
+        </div>
+
+        <div class="chat-input-row">
+            <input class="chat-input" id="chatInput" placeholder="Ask me anything..."
+                onkeydown="if(event.key==='Enter') sendMessage()" />
+            <button class="chat-send" onclick="sendMessage()">Send →</button>
+        </div>
+    </div>
+
+    <script>
+        // ── CHATBOT LOGIC ──
+        let chatOpen = false;
+
+        // Knowledge base — rule based responses
+        const rules = [
+            {
+                keys: ['what is fake news', 'define fake news', 'meaning of fake news', 'fake news means'],
+                answer: `<strong>What is Fake News?</strong>
+Fake news is false or misleading information presented as real news. It is designed to deceive readers, spread misinformation, or manipulate public opinion.\n\nCommon types include:\n• Fabricated stories\n• Misleading headlines\n• Conspiracy theories\n• Manipulated images or videos`
+            },
+            {
+                keys: ['how to use', 'how do i use', 'how does this work', 'how to analyze', 'guide', 'help'],
+                answer: `<strong>How to Use VeritasAI</strong>
+It's simple! Choose your input type:\n\n📝 <b>Text Tab</b> — Paste any news article or headline\n🖼️ <b>Image Tab</b> — Upload a screenshot of news\n🎬 <b>Video Tab</b> — Upload a news video file\n\nThen click <b>Analyze for Authenticity</b> and get your result instantly!`
+            },
+            {
+                keys: ['how accurate', 'accuracy', 'how reliable', 'how good', 'performance'],
+                answer: `<strong>Model Accuracy</strong>
+VeritasAI achieves <b>91.34% accuracy</b> trained on over 200,000 news articles.\n\nTraining datasets:\n• ISOT Dataset (2010–2017)\n• WELFake Dataset (up to 2022)\n• LIAR Dataset (up to 2022)\n\nThe model uses Logistic Regression + TF-IDF vectorization with 150,000 features.`
+            },
+            {
+                keys: ['credibility score', 'what is credibility', 'score mean', 'what does score'],
+                answer: `<strong>Credibility Score (0–100)</strong>
+This measures how trustworthy the <b>news content</b> is.\n\n• 70–100 → Likely real and credible\n• 40–69  → Uncertain, verify manually\n• 0–39   → Likely fake or misleading\n\nIt is based on the probability that the content matches real news patterns learned during training.`
+            },
+            {
+                keys: ['confidence level', 'what is confidence', 'confidence mean'],
+                answer: `<strong>Confidence Level</strong>
+This shows how <b>certain the model is</b> about its prediction.\n\n• HIGH   → 85%+ certainty\n• MEDIUM → 65–84% certainty\n• LOW    → Below 65% certainty\n\nNote: Credibility Score is about the news content. Confidence Level is about the model's certainty.`
+            },
+            {
+                keys: ['categories', 'what categories', 'types of news', 'which topics', 'supports'],
+                answer: `<strong>Supported News Categories</strong>
+VeritasAI detects fake news across all 8 categories:\n\n🏛️ Politics & Government\n🏥 Health & Medicine\n🔭 Science & Technology\n💰 Business & Economy\n⚽ Sports\n🎬 Entertainment & Celebrity\n🌍 Environment & Climate\n🚔 Crime & Justice`
+            },
+            {
+                keys: ['how to verify', 'verify news', 'check news', 'tips', 'fact check', 'trusted sources'],
+                answer: `<strong>How to Verify News</strong>
+Follow these steps to fact-check any news:\n\n1️⃣ Search on <b>Reuters, AP News, BBC</b>\n2️⃣ Check fact-checking sites like <b>Snopes, FactCheck.org, PolitiFact</b>\n3️⃣ Look for <b>named sources</b> — anonymous = suspicious\n4️⃣ Check the <b>publication date</b>\n5️⃣ Reverse image search any photos\n6️⃣ Be skeptical of ALL CAPS headlines`
+            },
+            {
+                keys: ['red flag', 'what are red flags', 'suspicious', 'warning signs'],
+                answer: `<strong>Red Flags of Fake News</strong>
+VeritasAI checks for these warning signs:\n\n🚩 "Share before deleted" urgency\n🚩 Sensational words (SHOCKING, BOMBSHELL)\n🚩 Anonymous or unnamed sources\n🚩 Conspiracy theory terms\n🚩 Anti-pharma / miracle cure claims\n🚩 Excessive exclamation marks!!!\n🚩 100% guaranteed claims\n🚩 Known conspiracy topics (5G, microchips)`
+            },
+            {
+                keys: ['image', 'upload image', 'screenshot', 'photo', 'ocr'],
+                answer: `<strong>Image Analysis</strong>
+Upload a screenshot of any news article and VeritasAI will:\n\n1. Extract the text using <b>OCR (Tesseract)</b>\n2. Clean and process the text\n3. Run it through the ML model\n4. Show you the verdict\n\n💡 Tip: Include at least 2–3 paragraphs in your screenshot for best accuracy!`
+            },
+            {
+                keys: ['video', 'upload video', 'speech', 'audio'],
+                answer: `<strong>Video Analysis</strong>
+Upload a news video file and VeritasAI will:\n\n1. Extract the audio track\n2. Convert speech to text\n3. Analyze the first <b>60 seconds</b>\n4. Show you the verdict\n\n💡 Supported formats: MP4, AVI, MOV, MKV, WEBM\n⚠️ Requires clear English speech in the video.`
+            },
+            {
+                keys: ['probability', 'real probability', 'fake probability', 'percentage'],
+                answer: `<strong>Probability Distribution</strong>
+Shows the ML model's raw probability scores:\n\n✅ <b>REAL %</b> — probability the content is genuine news\n❌ <b>FAKE %</b> — probability the content is misinformation\n\nThese two always add up to 100%. The higher score determines the final verdict.`
+            },
+            {
+                keys: ['who made', 'who created', 'about this app', 'about veritasai', 'developer'],
+                answer: `<strong>About VeritasAI</strong>
+VeritasAI is an AI-based fake news detection system built using:\n\n🤖 <b>Machine Learning</b> — Logistic Regression\n📊 <b>NLP</b> — TF-IDF Vectorization\n🔍 <b>OCR</b> — Tesseract for image analysis\n🎙️ <b>Speech-to-Text</b> — for video analysis\n🌐 <b>Flask</b> — Python web framework`
+            },
+            {
+                keys: ['hello', 'hi', 'hey', 'good morning', 'good evening', 'howdy'],
+                answer: `<strong>Hello! 👋</strong>
+Welcome to VeritasAI! I'm VeritasBot, your fake news detection assistant.\n\nI can help you with:\n• Using the app\n• Understanding results\n• News verification tips\n• How the AI works\n\nWhat would you like to know?`
+            },
+            {
+                keys: ['thank', 'thanks', 'thank you', 'great', 'awesome', 'good job'],
+                answer: `You're welcome! 😊\n\nRemember — always verify news from multiple trusted sources before sharing. Stay informed and stay safe! 🗞️`
+            },
+            {
+                keys: ['bye', 'goodbye', 'see you', 'exit'],
+                answer: `Goodbye! 👋\n\nStay vigilant against misinformation. Remember — when in doubt, verify before you share! 🗞️`
+            },
+            {
+                keys: ['what is tfidf', 'tf idf', 'tf-idf', 'tfidf', 'term frequency'],
+                answer: `<strong>What is TF-IDF?</strong>\nTF-IDF stands for <b>Term Frequency - Inverse Document Frequency</b>.\n\nIt converts text into numbers the ML model can understand.\n\n📌 <b>TF</b> — How often a word appears in the article\n📌 <b>IDF</b> — How rare the word is across all articles\n\nWords common in fake news (SHOCKING, EXPOSED, BOMBSHELL) get high scores — helping detect misinformation! 🎯`
+            },
+            {
+                keys: ['what is nlp', 'natural language processing', 'nlp mean'],
+                answer: `<strong>What is NLP?</strong>\nNLP stands for <b>Natural Language Processing</b> — AI that helps computers understand human language.\n\nIn VeritasAI, NLP is used to:\n📝 Read and analyze news text\n🔍 Detect suspicious writing patterns\n📊 Convert words into numbers\n🚩 Identify fake news language\n\nWithout NLP, the computer cannot understand words! 🤖`
+            },
+            {
+                keys: ['logistic regression', 'what algorithm', 'which algorithm', 'ml algorithm'],
+                answer: `<strong>Logistic Regression</strong>\nThe ML algorithm powering VeritasAI.\n\nHow it works:\n1️⃣ Reads TF-IDF features of the news\n2️⃣ Calculates probability of REAL vs FAKE\n3️⃣ Real > 50% → REAL NEWS\n4️⃣ Fake > 50% → FAKE NEWS\n\n✅ Achieves 91.34% accuracy on 200,000+ articles!`
+            },
+            {
+                keys: ['what is ocr', 'ocr mean', 'tesseract', 'optical character'],
+                answer: `<strong>What is OCR?</strong>\nOCR stands for <b>Optical Character Recognition</b> — technology that reads text from images.\n\nVeritasAI uses <b>Tesseract OCR v5.5</b> which:\n📸 Scans your uploaded image\n🔤 Extracts all readable text\n🤖 Sends text to the ML model\n✅ Returns the verdict\n\n💡 Works best with clear, high resolution screenshots!`
+            },
+            {
+                keys: ['what is machine learning', 'machine learning', 'what is ml', 'what is ai', 'artificial intelligence'],
+                answer: `<strong>What is Machine Learning?</strong>\nML is a type of AI where computers learn from data instead of being manually programmed.\n\nVeritasAI's ML model:\n📚 Trained on 200,000+ news articles\n🧠 Learned patterns of real vs fake news\n🎯 Predicts new articles with 91.34% accuracy\n\nIt learned by reading thousands of examples — just like a human! 🤖`
+            },
+            {
+                keys: ['what is flask', 'technology used', 'how is website made', 'built with'],
+                answer: `<strong>Technologies Used</strong>\n🐍 <b>Python</b> — main programming language\n🌐 <b>Flask</b> — web framework\n🤖 <b>Scikit-learn</b> — ML model\n📊 <b>TF-IDF</b> — text vectorization\n🔍 <b>Tesseract OCR</b> — image analysis\n🎙️ <b>SpeechRecognition</b> — video analysis\n🎨 <b>HTML + CSS + JS</b> — frontend`
+            },
+            {
+                keys: ['tamil', 'hindi', 'regional', 'other language', 'language support'],
+                answer: `<strong>Language Support</strong>\nCurrently VeritasAI supports <b>English only</b>.\n\nThis is because the 200,000+ training articles are in English.\n\n🔮 <b>Future upgrade possible!</b>\nWith Tamil/Hindi datasets and retraining, regional language support can be added — a great future enhancement! 🎯`
+            },
+            {
+                keys: ['dataset', 'training data', 'how was it trained', 'isot', 'welfake', 'liar'],
+                answer: `<strong>Training Datasets</strong>\nVeritasAI was trained on <b>3 combined datasets</b>:\n\n📁 <b>ISOT</b> — 117,033 articles (2010–2017)\n📁 <b>WELFake</b> — 72,134 articles (up to 2022)\n📁 <b>LIAR</b> — 12,791 articles (up to 2022)\n\nTotal: <b>200,000+ articles</b> across all 8 news categories ✅`
+            },
+            {
+                keys: ['wrong prediction', 'incorrect', 'mistake', 'false positive', 'wrong result', 'error'],
+                answer: `<strong>Wrong Predictions</strong>\nNo AI is 100% perfect. VeritasAI has <b>91.34% accuracy</b> — about 1 in 10 may be incorrect.\n\nCommon reasons:\n⚠️ Very short text (under 50 words)\n⚠️ Sarcastic or satirical news\n⚠️ Non-English content\n⚠️ Very recent events\n\n💡 Always verify important news manually! 🎯`
+            },
+            {
+                keys: ['how to improve', 'improve accuracy', 'make better', 'enhance'],
+                answer: `<strong>Tips for Best Results</strong>\n✅ Paste <b>full articles</b> not just headlines\n✅ Include at least <b>100+ words</b>\n✅ Use <b>clear screenshots</b> for images\n✅ Ensure <b>clear English speech</b> for video\n✅ Cross-check with trusted news sources\n\n🔮 Future: regional languages + deep learning!`
+            },
+        ];
+
+        function getBotResponse(input) {
+            const lower = input.toLowerCase().trim();
+            for (const rule of rules) {
+                if (rule.keys.some(k => lower.includes(k))) {
+                    return rule.answer;
+                }
+            }
+            // Default fallback
+            return `I'm not sure about that specific question. Here are some things I can help with:\n\n• How to use the app\n• Understanding credibility scores\n• What red flags mean\n• How to verify news\n• Supported categories\n\nTry asking one of those! 😊`;
+        }
+
+        function toggleChat() {
+            chatOpen = !chatOpen;
+            const win = document.getElementById('chatWindow');
+            win.classList.toggle('open', chatOpen);
+            document.getElementById('chatBadge').style.display = 'none';
+
+            if (chatOpen && document.getElementById('chatMessages').children.length === 0) {
+                setTimeout(() => addBotMessage(
+                    `<strong>Welcome to VeritasBot! 🗞️</strong>\nI'm your fake news detection assistant.\n\nAsk me anything about:\n• How the app works\n• Understanding results\n• News verification tips\n\nOr click a quick reply below! 👇`
+                ), 400);
+            }
+            if (chatOpen) {
+                setTimeout(() => document.getElementById('chatInput').focus(), 300);
+            }
+        }
+
+        function addUserMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'chat-msg user';
+            div.textContent = text;
+            document.getElementById('chatMessages').appendChild(div);
+            scrollChat();
+        }
+
+        function addBotMessage(html) {
+            const div = document.createElement('div');
+            div.className = 'chat-msg bot';
+            div.innerHTML = html.replace(/\n/g, '<br/>');
+            document.getElementById('chatMessages').appendChild(div);
+            scrollChat();
+        }
+
+        function scrollChat() {
+            const msgs = document.getElementById('chatMessages');
+            msgs.scrollTop = msgs.scrollHeight;
+        }
+
+        function showTyping() {
+            document.getElementById('typingIndicator').style.display = 'flex';
+            scrollChat();
+        }
+
+        function hideTyping() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        function sendQuick(text) {
+            addUserMessage(text);
+            showTyping();
+            setTimeout(() => {
+                hideTyping();
+                addBotMessage(getBotResponse(text));
+            }, 700);
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+            input.value = '';
+
+            addUserMessage(text);
+            showTyping();
+
+            setTimeout(() => {
+                hideTyping();
+                addBotMessage(getBotResponse(text));
+            }, 800);
+        }
+    </script>
 </body>
+
 </html>
