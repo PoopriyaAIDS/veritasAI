@@ -1,0 +1,16 @@
+# Personal data
+analysis_history.json
+
+# Large CSV files (optional)
+*.csv
+
+# Python cache
+__pycache__/
+*.pyc
+
+# VS Code
+*.code-workspace
+
+# Temp files
+*.tmp
+*.log
